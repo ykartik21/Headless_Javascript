@@ -1,0 +1,341 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        Activate OTP-less Sign in. One-tap, No more passwords. Fast, simple,
+        secure.
+    </title>
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 20px;
+    }
+
+    #response {
+        width: 100%;
+        padding: 10px;
+        word-break: break-all;
+        border: 1px solid #eee;
+        border-radius: 6px;
+        margin-top: 10px;
+        max-height: 80vh;
+        overflow: scroll;
+        background:
+            /* Shadow covers */
+            linear-gradient(white 30%, rgba(255, 255, 255, 0)), linear-gradient(rgba(255, 255, 255, 0), white 70%) 0 100%,
+            /* Shadows */
+            radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, .2), rgba(0, 0, 0, 0)), radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, .2), rgba(0, 0, 0, 0)) 0 100%;
+        background-repeat: no-repeat;
+        background-color: white;
+        background-size: 100% 40px, 100% 40px, 100% 14px, 100% 14px;
+        background-attachment: local, local, scroll, scroll;
+    }
+
+    #response div {
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        color: #333;
+        padding: 10px;
+        letter-spacing: 1px;
+        line-height: 20px;
+    }
+
+    .response-item {
+        border-top: 1px solid #ddd;
+    }
+</style><style type="text/css">
+@font-face {
+font-weight: 400;
+font-style:  normal;
+font-family: circular;
+
+src: url('chrome-extension://liecbddmkiiihnedobmlmillhodjkdmb/fonts/CircularXXWeb-Book.woff2') format('woff2');
+}
+
+@font-face {
+font-weight: 700;
+font-style:  normal;
+font-family: circular;
+
+src: url('chrome-extension://liecbddmkiiihnedobmlmillhodjkdmb/fonts/CircularXXWeb-Bold.woff2') format('woff2');
+}</style></head>
+
+<body><div>
+    <input id="country-code-input" placeholder="country code">
+    <input id="mobile-input" placeholder="mobile number">
+    <button onclick="initiate()">Request OTP</button>
+</div>
+<div id="otp-section" style="display: none;">
+    <input id="otp-input">
+    <button onclick="verify()">Verify OTP</button>
+</div>
+<button onclick="oauth('WHATSAPP')">WHATSAPP</button>
+<button onclick="oauth('GMAIL')">GMAIL</button>
+<button onclick="oauth('TRUE_CALLER')">TRUE_CALLER</button> 
+<div>
+    <button onclick="verifySession()">Verify Session</button>
+    <button onclick="logoutSession()">Logout Session</button>
+    <button onclick="getChannels()">Get Channels</button>
+    <button onclick="getCountryCodes()">Get CountryCodes</button>
+</div>
+
+<div id="response"></div>
+
+<!-- Helper Script -->
+<script>
+    let OTPlessSignin = null;
+    async function OTPlessSdk() {
+            return new Promise(async (resolve) => {
+
+                if (document.getElementById('otpless-sdk') && OTPlessSignin) return resolve();
+
+                const script = document.createElement('script');
+                script.src = "https://otpless.tech/v3/headless.js";
+                script.id = "otpless-sdk";
+                script.setAttribute('data-appid', '4ULZ8ZIE096DPDSX64B0');
+                script.onload = function () {
+                    const OTPless = Reflect.get(window, "OTPless")
+                    OTPlessSignin = new OTPless(callback);
+                    resolve()
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+
+
+    async function hitOTPlessSdk(params) {
+        await OTPlessSdk();
+
+        const { requestType, request } = params;
+
+        return await OTPlessSignin[requestType](request)
+    }
+
+</script>
+
+<!-- Main Script -->
+<script>
+    const appendResponse = (response) => {
+        const input = document.getElementById('response');
+        const newContent = document.createElement('div');
+        if (input.children.length > 0) newContent.classList.add('response-item');
+        newContent.textContent = JSON.stringify(response);
+        input.appendChild(newContent);
+    }
+
+    const callback = (eventCallback) => {
+
+        console.log({ eventCallback });
+        appendResponse(eventCallback);
+
+        const ONETAP = () => {
+            const { response } = eventCallback;
+
+
+            console.log({ response, token: response.token });
+
+            // YOUR_LOGIC
+        };
+
+        const OTP_AUTO_READ = () => {
+            const { response: { otp } } = eventCallback;
+
+            // YOUR OTP FLOW
+
+            const otpInput = document.getElementById('otp-input');
+
+            otpInput.value = otp
+        }
+
+        const FAILED = () => {
+            const { response } = eventCallback;
+
+            console.log({ response })
+        }
+
+
+        const EVENTS_MAP = {
+            ONETAP,
+            OTP_AUTO_READ,
+            FAILED
+        }
+
+        if ("responseType" in eventCallback) EVENTS_MAP[eventCallback.responseType]()
+    }
+
+    async function initiate() {
+        const input = document.getElementById('mobile-input')
+        const countryCode = document.getElementById("country-code-input").value || "91"
+
+        const isNum = !!Number(input.value)
+
+        const request = {
+            channel: isNum ? 'PHONE' : "EMAIL",
+            [isNum ? "phone" : "email"]: input.value,
+            ...(isNum && { countryCode }),
+            metaData: { firstName: "Mihit", lastName: "Thakkar", gameName: "Mickey" }
+        }
+
+        const initiate = await hitOTPlessSdk({
+            requestType: "initiate",
+            request
+        })
+
+        appendResponse(initiate)
+        console.log({ initiate })
+        const otpSectipn = document.getElementById('otp-section');
+        otpSectipn.style.display = "block";
+    }
+
+    async function oauth(channelType) {
+        const initiate = await hitOTPlessSdk({
+            requestType: "initiate",
+            request: {
+                channel: 'OAUTH',
+                channelType
+            }
+        })
+
+        appendResponse(initiate)
+
+        console.log({ initiate })
+    }
+
+    async function verify() {
+
+        const mobileinput = document.getElementById('mobile-input');
+        const otpinput = document.getElementById('otp-input');
+
+        const verify = await hitOTPlessSdk({
+            requestType: "verify",
+            request: {
+                channel: 'PHONE',
+                phone: mobileinput.value,
+                otp: otpinput.value,
+                countryCode: "+91"
+            }
+        })
+
+        appendResponse(JSON.stringify(initiate))
+
+        console.log({ verify })
+    }
+
+    async function getChannels() {
+        await OTPlessSdk();
+        OTPlessSignin.getConfig().then(appendResponse);
+    }
+
+    async function getCountryCodes(params) {
+        await OTPlessSdk();
+        OTPlessSignin.getCountryCodes().then(appendResponse);
+    }
+
+    async function verifySession() {
+        await OTPlessSdk();
+        OTPlessVerifySession().then(appendResponse)
+    }
+
+    async function logoutSession() {
+        await OTPlessSdk();
+        OTPlessLogout().then(appendResponse)
+    }
+
+    localStorage.setItem("userId", "e45e5ae5ba8711ee9cbe02e825e2ea5c")
+    OTPlessSdk();
+</script>
+
+<div id="loom-companion-mv3" ext-id="liecbddmkiiihnedobmlmillhodjkdmb"><section id="shadow-host-companion"></section></div><style id="otpless-loader-style" type="text/css">
+@keyframes otpless-spinner {
+0% {
+  transform: rotate(0deg);
+}
+
+100% {
+  transform: rotate(360deg);
+}
+}
+
+.animated {
+-webkit-animation-duration: 0.5s;
+animation-duration: 0.5s;
+-webkit-animation-fill-mode: backwards;
+animation-fill-mode: backwards;
+}
+
+@-webkit-keyframes fadeOutRight {
+from {
+    opacity: 1;
+}
+
+to {
+    opacity: 0;
+    -webkit-transform: translate3d(100%, 0, 0);
+    transform: translate3d(100%, 0, 0);
+}
+}
+
+@keyframes fadeOutRight {
+from {
+    opacity: 1;
+}
+
+to {
+    opacity: 0;
+    -webkit-transform: translate3d(100%, 0, 0);
+    transform: translate3d(100%, 0, 0);
+}
+}
+
+.fadeOutRight {
+-webkit-animation-name: fadeOutRight;
+animation-name: fadeOutRight;
+}
+
+@-webkit-keyframes fadeInRight {
+from {
+    opacity: 0;
+    -webkit-transform: translate3d(100%, 0, 0);
+    transform: translate3d(100%, 0, 0);
+}
+
+to {
+    opacity: 1;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+}
+}
+
+@keyframes fadeInRight {
+from {
+    opacity: 0;
+    -webkit-transform: translate3d(100%, 0, 0);
+    transform: translate3d(100%, 0, 0);
+}
+
+to {
+    opacity: 1;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+}
+}
+
+.fadeInRight {
+-webkit-animation-name: fadeInRight;
+animation-name: fadeInRight;
+}
+</style><div id="otpless-floating-button" style="top: 70px; right: 30px; width: 385px;
+position: fixed;
+box-shadow: 0 1px 2px 0 rgba(65,69,73,.3), 0 3px 6px 2px rgba(65,69,73,.15);
+background: #FFF;
+transition: all 0.5s ease-in-out;
+font-size: 14px;
+z-index: 99999999999999999999999;
+opacity: 0; pointer-events: none;">
+
+<!-- <iframe id="otpless-floating-frame" style="width: 100%; border: none; height: 100%; border-radius: 12px; z-index: 1; opacity: 1;" loading="eager" src="https://otpless.tech/v3/auth/index.html?login_uri=https%3A%2F%2Ffinixpartners.com%2Fv3-test%2Fhl.html%3FappId%3DOVZENUJP21610DC09RDD&amp;isLoginPage=false&amp;isHeadless=true&amp;sdkPlatform=HEADLESS&amp;appId=OVZENUJP21610DC09RDD"></iframe></div></body></html> -->
